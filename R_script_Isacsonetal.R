@@ -134,13 +134,6 @@ table(pac_h@Anno$Biotypes_1mm_n)
 save(pac_h, file="pac_annotated.Rdata")
 
 
-# Supplementary Figure 1
-
-
-pca <- PAC_pca(pac_h)
-pca$graphs$PC1_PC2|pca$graphs$PC1_PC3|pca$graphs$PC2_PC3
-sb <- PAC_stackbar(pac_h, anno_target = list("Biotypes_1mm_n"))
-
 
 # ---- perform DEA ----
 
@@ -153,6 +146,9 @@ pac_h@Pheno$Fertilityrate_group2 <- ifelse(pac_h@Pheno$fertilityrate>=70, "High"
 dsq_f <- PAC_deseq(pac_h, model = ~ Fertilityrate_group2 + flowcell, pheno_target = list("Fertilityrate_group2", c("High", "Low")))
 dsq_utr <- PAC_deseq(pac_h, model = ~ Mod_ut_num_group + flowcell, pheno_target = list("Mod_ut_num_group", c("High", "Low")))
 
+# Supplementary Figure 1
+
+sb <- PAC_stackbar(pac_h, anno_target = list("Biotypes_1mm_n"))
 
 # ---- Figure 2 ----
 
@@ -218,6 +214,7 @@ pie_downfert <- PAC_pie(pac_fu, anno_target = list("Biotypes_1mm_n"),  summary =
 
 # Supplementary Figure 2
 
+dsq_objs$d1$plot + dsq_objs$d2$plot
 
 all_rows <- unique(c(rownames(dsq_objs$d1$res[dsq_objs$d1$res$DE %in% "UP",]), 
                      rownames(dsq_objs$d1$res[dsq_objs$d1$res$DE %in% "DOWN",]),
@@ -397,14 +394,47 @@ roc1<-ggplot(df_roc, aes(d = spermc_bin, m = RNY4)) + geom_roc() + style_roc()+
         axis.title.y = element_text(size=30))
 calc_auc(roc1)
 
+# Figure 4 a
 
-# Figure 4
+df <- pac_fu
+df@Anno
+map <- PAC_mapper(df, 
+                  ref="D:/Genomes/HUMAN/tRNA/trnaensembl.fa",
+                  mismatches = 1)
+
+# Figure 4 b
+
+
+test <- tRNA_class(df, map)
+test@Anno$all <- paste0(test@Anno$type, sep="_", test@Anno$class)
+tst <- data.frame(test@norm$cpm, seq=test@Anno$all)
+tst <- aggregate(tst[,1:70], by=list(tst$seq), FUN=sum)
+
+plot_df <- gather(tst, key="sample", value="cpm", -Group.1)
+plot_df$group <- rep(df@Pheno$Fertilityrate_group2, each=nrow(tst))
+plot_df<-plot_df[plot_df$group %in% c("High", "Low"),]
+
+ggplot(plot_df, aes(x=Group.1, y=cpm, fill=group))+
+  geom_boxplot(size=1)+
+  geom_point(position = position_dodge(width = .75), size=2)+
+  theme_classic()+
+  scale_fill_manual(values=c("#eba468", "#85aa80"))+
+  stat_compare_means()+
+  theme(axis.line=element_line(size=1), 
+        axis.text.x = element_text(size=16),
+        axis.text.y = element_text(size=16))+
+  facet_wrap(~Group.1, scales = "free", ncol=3)
+
+# Figure 4 d
+
+
+# Figure 5
 
 
 samples_to_use <- rownames(pac_h@Pheno[pac_h@Pheno$Mod_ut_num_group %in% c("High", "Low"),])
 
 
-# Fig 4 A
+# Fig 5 a
 
 
 df <- PAC_filter(pac_eu, anno_target = list("Biotypes_1mm_n", "miRNA"))
@@ -448,7 +478,7 @@ ggplot(plot_df, aes(x=Group.1, y=cpm, fill=group))+
         axis.text.y = element_text(size=16))+
   facet_wrap(~Group.1, scales = "free", ncol=5)
 
-## Figure 4 b
+## Figure 5 b
 
 
 corrplot <- plot_df[plot_df$Group.1 %in% "let-hsa-let-7g MI0000433",]
@@ -467,7 +497,7 @@ ggplot(corrplot2, aes(x=cpm, y=utr)) +
   stat_cor(method = "pearson", label.x = 3, label.y = 30)
 
 
-##Figure 4 c
+##Figure 5 c
 
 
 df_roc <- pac_h@Pheno[,c("sperm_conc_milj_per_ml", "Mod_ut_num_group")]
@@ -520,18 +550,48 @@ roc1<-ggplot(df_roc, aes(d = mod_bin, m = RNY4)) + geom_roc() + style_roc()+
 calc_auc(roc1)
 
 
-## Figure 4 d
+## Figure 5 d
 
 
 # Supplementary Figure 4 b
 #all rsRNA
 
-## Figure 4 e
+## Figure 5 e
+
+samples_to_use <- rownames(pac_h@Pheno[pac_h@Pheno$Mod_ut_num_group %in% c("High", "Low"),])
+
+hej <- plot_df[plot_df$Group.1 %in% "28S_ribosomal_RNA",]
+hej <- hej[hej$sample %in% samples_to_use,]
+pheno2 <- pac_h@Pheno[pac_h@Pheno$sampleID %in% samples_to_use,]
+hej2 <- cbind(hej, pheno2)
+hej2$utr <- hej2$`Good_quality_embryos_retrieved_ per_fertilized (new modified utilization rate)`
+hej2 <- hej2[,c(1:5,87:90)]
+hej2$utr <- as.numeric(hej2$utr)
+
+ggplot(hej2, aes(x=cpm, y=utr)) + 
+  geom_point()+
+  geom_smooth(method=lm, color="black")+
+  labs(title="Ser1 vs sperm conc.")+
+  theme_classic() +
+  stat_cor(method = "pearson", label.x = 3, label.y = 30)
+
+## Figure 5 f
 
 
-## Figure 4 f
+df_roc <- pac_h@Pheno[,c("sperm_conc_milj_per_ml", "Mod_ut_num_group")]
+df_roc$mod_bin <- ifelse(df_roc$Mod_ut_num_group=="Low", 1, 2)
+df_roc$mod_bin <- ifelse(df_roc$Mod_ut_num_group=="High", 0, df_roc$mod_bin)
+df_roc <- df_roc[!df_roc$mod_bin==2,]
+df_roc <- cbind(df_roc, hej2$cpm)
 
-
+colnames(df_roc) <- c("sperm_conc_milj_per_ml", "Mod_ut_num_group", "mod_bin", "RNY4")
+roc1<-ggplot(df_roc, aes(d = mod_bin, m = RNY4)) + geom_roc() + style_roc()+
+  theme(axis.line=element_line(size=1), 
+        axis.text.x = element_text(size=20),
+        axis.text.y = element_text(size=20),
+        axis.title.x = element_text(size=30),
+        axis.title.y = element_text(size=30))
+calc_auc(roc1)
 
 
 
@@ -556,3 +616,152 @@ ggplot(GOplot, aes(x=foldenr, y=GO, color=FDR, size=foldenr))+
   geom_point()+
   theme_classic()+
   scale_y_discrete(limits=rev)
+
+
+# Supplementary Figure 6
+
+
+## DEGS for a,b and c
+
+
+dq_bbh <- PAC_deseq(pac_h, model = ~Bring_Baby_home.y + flowcell)
+res <- dq_bbh$result
+lbl <- names(res)[3]
+res$FC<-res[,3]
+res$DE <- ifelse(res$FC>1 & res$padj<0.1, "UP", "")
+res$DE <- ifelse(res$FC<(-1) & res$padj<0.1, "DOWN", res$DE)
+res <- res[,c("FC", "DE", "Biotypes_1mm_n", "padj")]
+res <- na.omit(res)
+res$col <- ifelse(res$DE %in% "UP", res$Biotypes_1mm_n, "")
+res$col <- ifelse(res$DE %in% "DOWN", res$Biotypes_1mm_n, res$col)
+plot_bbh<-ggplot(res, aes(FC, -log10(padj), color=col)) + 
+  geom_point(size=3) +
+  scale_color_manual(values=c("darkgrey", "#d8c2c2", "#8e6e53",
+                              "#d16e6e",  "#f79256","#fbd1a2",
+                              "#7dcfb6","#00b2ca", "#1d4e89",
+                              "#F0F415","#F7F6C5","#F0F0F0",
+                              "#F0F0F1", "#F0F0F2","#F0F0F3"))+
+  theme_classic()+
+  ggtitle(label=(lbl))+
+  xlim(-2,2)+
+  geom_hline(yintercept = 1, linetype="dashed")+
+  geom_vline(xintercept = c(-1,1), linetype="dashed")+
+  theme(text=element_text(size=12), legend.position="bottom")
+
+pac_baby <- PAC_filter(pac_h, pheno_target = list("Bring_Baby_home.y", "1"))
+
+dds <- DESeqDataSetFromMatrix(pac_baby@Counts, DataFrame(pac_baby@Pheno), ~Z.score+flowcell)
+dds <- DESeq(dds)
+resultsNames(dds)
+res <- results(dds, name="Z.score")
+res <- na.omit(res)
+res <- as.data.frame(res)
+all1 <- merge(res, res_zscore, by="row.names")
+
+res$DE <- ifelse(res$log2FoldChange>1 & res$padj<0.1, "UP", "")
+res$DE <- ifelse(res$log2FoldChange<(-1) & res$padj<0.1, "DOWN", res$DE)
+
+plot_ga<-ggplot(res, aes(log2FoldChange, -log10(padj), color=DE)) + 
+  geom_point(size=3) +
+  scale_color_manual(values=c("darkgrey", 
+                              "#d16e6e", 
+                              "#00b2ca", "#1d4e89",
+                              "#F0F415","#F7F6C5","#F0F0F0",
+                              "#F0F0F1", "#F0F0F2","#F0F0F3"))+
+  theme_classic()+
+  xlim(-0.2,0.2)+
+  geom_hline(yintercept = 1, linetype="dashed")+
+  geom_vline(xintercept = c(-1,1), linetype="dashed")+
+  theme(text=element_text(size=12), legend.position="bottom")
+
+dds <- DESeqDataSetFromMatrix(pac_baby@Counts, DataFrame(pac_baby@Pheno), ~day_baby+flowcell)
+dds <- DESeq(dds)
+resultsNames(dds)
+res <- results(dds, name="day_baby")
+res <- na.omit(res)
+res <- as.data.frame(res)
+
+res$DE <- ifelse(res$log2FoldChange>1 & res$padj<0.1, "UP", "")
+res$DE <- ifelse(res$log2FoldChange<(-1) & res$padj<0.1, "DOWN", res$DE)
+
+plot_bw<-ggplot(res, aes(log2FoldChange, -log10(padj), color=DE)) + 
+  geom_point(size=3) +
+  scale_color_manual(values=c("darkgrey", 
+                              "#d16e6e", 
+                              "#00b2ca", "#1d4e89",
+                              "#F0F415","#F7F6C5","#F0F0F0",
+                              "#F0F0F1", "#F0F0F2","#F0F0F3"))+
+  theme_classic()+
+  xlim(-4,4)+
+  geom_hline(yintercept = 1, linetype="dashed")+
+  geom_vline(xintercept = c(-1,1), linetype="dashed")+
+  theme(text=element_text(size=12), legend.position="bottom")
+
+## Supplementary Figure 6 d
+
+intse <- c("TAAAATTGGAACGATACAGAGAAGATTAGCATGGCCCCTGCGCAAGGATGACA",
+           "AATTGGAACGATACAGAGAAGATTAGCATGGCCCCTGCGCAAGGATGACA",
+           "ATTGGAACGATACAGAGAAGATTAGCATGGCCCCTGCGCAAGGATGACA",
+           "TTGGAACGATACAGAGAAGATTAGCATGGCCCCTGCGCAAGGATGACA")
+
+pac_s <- PAC_filter(pac_h, anno_target = intse)
+pac_s <- PAC_summary(pac_s, norm="cpm", pheno_target = list("Bring_Baby_home"))
+map <- PAC_mapper(pac_s, mismatches=1,
+                  ref="D:/Genomes/HUMAN/yrna_snrna.fa")
+cpt <- PAC_covplot(pac_s, map, summary_target = list("cpmMeans_Bring_Baby_home"))
+
+## Supplementary Figure 6 e,f,g,h
+
+intrst_seq <- rownames(pac_bw@Anno[rownames(pac_bw@Anno) %in% rownames(res[res$DE %in% "DOWN",]),])
+pac_intr <- PAC_filter(pac_baby, anno_target = intrst_seq)
+
+my_data <- t(pac_intr@norm$cpm)
+my_data <- as.data.frame(my_data)
+my_data$bw <- pac_intr@Pheno$Z.score
+
+map <- PAC_mapper(pac_intr, ref="D:/Genomes/HUMAN/tRNA/gtrnadb_hs.fa", mismatches = 1)
+
+
+# Supplementary Figure 7
+
+
+metad <- pac_h@Pheno[,c("BMI_bin", "BMI_bin_f", "flowcell", "age_bin", "age_b_f", 
+                        "more_or_equal_to_5_million_motile_sperm", "Mod_ut_num_group", "Fertilityrate_group2",
+                        "Bring_Baby_home.y", "Oocyte_group",  "Pregnancytest", "place_sample", 
+                        "Spermcount", "more_or_equal_30perc_progressiv_motile")]
+
+metad$place_sample<-as.factor(metad$place_sample)
+metad$sugar <- as.factor(metad$sugar)
+colnames(metad)
+metad <- as.data.frame(lapply(metad, as.factor))
+metad$BBH <- as.factor(metad$Bring_Baby_home)
+metad$bbh_study <- as.factor(metad$Bring.baby.home.from.the.treatment.with.sperm.studied)
+metad$agefact <- as.factor(metad$age)
+metad$agefact_f <- as.factor(metad$f_age)
+metad$BMIfact <- as.factor(metad$BMI)
+metad$BMIfact_f <- as.factor(metad$f_BMI)
+
+formula <- ~ (1|agefact) + (1 | agefact_f) + (1|BMI_bin) + (1|BMI_bin_f) + (1|bbh_study) +
+  (1|Fertilityrate_group) + (1|Fertilityrate_group2) + (1|High_quality_embryos_used) + 
+  (1| Mod_ut_num_group) + (1|more_or_equal_30perc_progressiv_motile) + (1|more_or_equal_to_5_million_motile_sperm)+ (1|place_sample)+
+  (1|Preg0ncytest) + (1|flowcell)
+exprmat <- pac_h@Counts[,-22]
+
+vp <- fitExtractVarPartModel(exprmat, formula, metad)
+plotVarPart(vp)
+
+## Supplementary Figure 7 b
+
+
+pca1 <- PAC_pca(pac_h, pheno_target="BMI")
+pca2 <- PAC_pca(pac_h, pheno_target="f_BMI")
+pca3 <- PAC_pca(pac_h, pheno_target="age")
+pca4 <- PAC_pca(pac_h, pheno_target="f_age")
+pac_h@Pheno$loghor <- log10(as.numeric(pac_h@Pheno$hormone_per_oocytes2))
+pac_h@Pheno$samp <- "y"
+pac_h@Pheno[pac_h@Pheno$sampleID %in% "SK30",]$samp<-"n"
+pac_h_n <- PAC_filter(pac_h, pheno_target = list("samp", "y"))
+pca5 <- PAC_pca(pac_h_n, pheno_target="loghor")
+
+(pca1$graphs$PC1_PC2 + pca2$graphs$PC1_PC2 + pca3$graphs$PC1_PC2 + 
+    pca4$graphs$PC1_PC2 + pca5$graphs$PC1_PC2 )
